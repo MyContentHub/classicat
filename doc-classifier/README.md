@@ -25,6 +25,11 @@ uv run pytest
 分类类别、prompt、模型在 `config.yaml` 中配置。默认四级：public / internal / restricted / confidential。
 模型返回 JSON（`category_matched` + `brief_explanation`），带指数退避重试（3 次），失败文件在 CSV 的 `error` 列标注。
 
+### 接入云端 API
+
+复制 `.env.example` 为 `.env`，填入 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` 即可接入任何
+OpenAI 兼容 API（如 DeepSeek），覆盖 `config.yaml` 的本地 Ollama 配置。`.env` 已被 gitignore，密钥不入库。
+
 ## 基准测试
 
 社区集测 PII 召回，自建集测分级边界：

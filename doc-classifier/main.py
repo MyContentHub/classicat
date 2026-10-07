@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import logging
+import os
 import re
 import sys
 import time
@@ -13,6 +14,34 @@ import yaml
 from openai import OpenAI
 
 logger = logging.getLogger("doc_classifier")
+
+
+def load_dotenv(path: Path) -> dict:
+    """解析 KEY=VALUE 格式的 .env 文件（支持 # 注释与引号值）。"""
+    if not path.exists():
+        return {}
+    env = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            env[key.strip()] = value.strip().strip('"').strip("'")
+    return env
+
+
+def apply_env_overrides(config: dict, env_path: Path | None = None) -> None:
+    """LLM_BASE_URL / LLM_API_KEY / LLM_MODEL 覆盖 config.yaml。
+
+    优先级：系统环境变量 > .env 文件 > config.yaml。用于接入任何 OpenAI 兼容 API。
+    """
+    env = load_dotenv(env_path or Path(__file__).parent / ".env")
+    env.update({k: os.environ[k] for k in ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL") if k in os.environ})
+    if env.get("LLM_BASE_URL"):
+        config["llm_server"]["base_url"] = env["LLM_BASE_URL"]
+    if env.get("LLM_API_KEY"):
+        config["llm_server"]["api_key"] = env["LLM_API_KEY"]
+    if env.get("LLM_MODEL"):
+        config["llm_server"]["model"] = env["LLM_MODEL"]
 
 
 def extract_json(text: str) -> dict:
@@ -68,7 +97,8 @@ def classify_file(client: OpenAI, config: dict, path: Path, max_retries: int = 3
 def run(directory: Path, config_path: Path, output_csv: Path) -> list[dict]:
     """扫描目录下所有 .md 文件并分级，写出 CSV。"""
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    client = OpenAI(base_url=config["llm_server"]["base_url"], api_key="ollama")
+    apply_env_overrides(config)
+    client = OpenAI(base_url=config["llm_server"]["base_url"], api_key=config["llm_server"].get("api_key", "ollama"))
     md_files = sorted(directory.rglob("*.md"))
     logger.info("Found %d markdown files in %s", len(md_files), directory)
     results = [classify_file(client, config, f) for f in md_files]

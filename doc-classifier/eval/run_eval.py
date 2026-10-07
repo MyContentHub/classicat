@@ -19,6 +19,7 @@ from openai import OpenAI
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
 from main import classify_content
+from main import apply_env_overrides
 
 LEVELS = ["public", "internal", "restricted", "confidential"]
 EVAL_DIR = Path(__file__).parent
@@ -140,7 +141,8 @@ def main() -> None:
     args = parser.parse_args()
 
     config = yaml.safe_load(args.config.read_text(encoding="utf-8"))
-    client = OpenAI(base_url=config["llm_server"]["base_url"], api_key="ollama")
+    apply_env_overrides(config, args.config.parent.parent / ".env")
+    client = OpenAI(base_url=config["llm_server"]["base_url"], api_key=config["llm_server"].get("api_key", "ollama"))
     rows = run_levels(client, config) if args.mode == "levels" else run_pii(client, config, args.n)
     if args.output is None:
         args.output = EVAL_DIR / f"eval_report_{args.mode}.csv"
