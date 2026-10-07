@@ -16,6 +16,8 @@ from pathlib import Path
 import yaml
 from openai import OpenAI
 
+sys.path.insert(0, str(Path(__file__).parents[1]))
+
 from main import classify_content
 
 LEVELS = ["public", "internal", "restricted", "confidential"]
@@ -57,9 +59,11 @@ def run_pii(client: OpenAI, config: dict, n_per_class: int) -> list[dict]:
 
 
 def build_sample(n_per_class: int) -> dict:
-    """从 OpenPII 验证集抽中英各半样本（含 PII/脱敏各 n_per_class 条）。
+    """从 OpenPII 验证集抽阳性样本（含 PII 原文，中英各半）。
 
-    只保留 zh/en 两种语言。结果缓存到本地 JSON，固定随机种子，保证多次运行样本一致。
+    阴性样本全部使用自建真干净文本（public/internal）：OpenPII 的无 PII 行
+    仍是占位符模板文本，会导致负样本污染（模型判其含 PII 是合理的）。
+    结果缓存到本地 JSON，固定随机种子，保证多次运行样本一致。
     """
     cache = EVAL_DIR / "pii_cache" / "sample.json"
     if cache.exists():
@@ -70,18 +74,22 @@ def build_sample(n_per_class: int) -> dict:
     ds = load_dataset("ai4privacy/pii-masking-openpii-1.5m", split="validation")
     zh = [r for r in ds if r["language"] == "zh"]
     en = [r for r in ds if r["language"] == "en"]
-    zh_pos = [r["source_text"] for r in zh if r["privacy_mask"]]
-    zh_neg = [r["masked_text"] for r in zh if not r["privacy_mask"]]
-    en_pos = [r["source_text"] for r in en if r["privacy_mask"]]
-    en_neg = [r["masked_text"] for r in en if not r["privacy_mask"]]
-    for name, pool in (("zh-pos", zh_pos), ("zh-neg", zh_neg), ("en-pos", en_pos), ("en-neg", en_neg)):
-        if len(pool) < n_per_class / 2:
-            raise ValueError(f"OpenPII validation split has too few {name} samples: {len(pool)}")
+    pos_zh = [r["source_text"] for r in zh if r["privacy_mask"]]
+    pos_en = [r["source_text"] for r in en if r["privacy_mask"]]
+    built_in = [
+        p.read_text(encoding="utf-8")
+        for p in sorted((EVAL_DIR / "eval_samples").glob("*.md"))
+        if p.name.split("__")[0] in ("public", "internal")
+    ]
+    neg_pool = built_in
+    for name, pool, floor in (("pos-zh", pos_zh, n_per_class), ("pos-en", pos_en, n_per_class), ("neg", neg_pool, 20)):
+        if len(pool) < floor:
+            raise ValueError(f"OpenPII/自建集 has too few {name} samples: {len(pool)} (need {floor})")
     rng = random.Random(42)
     half = n_per_class // 2
     sample = {
-        "positive": rng.sample(zh_pos, half) + rng.sample(en_pos, n_per_class - half),
-        "negative": rng.sample(zh_neg, half) + rng.sample(en_neg, n_per_class - half),
+        "positive": rng.sample(pos_zh, half) + rng.sample(pos_en, n_per_class - half),
+        "negative": list(neg_pool),  # 自建真干净样本全量使用，不抽样
     }
     cache.parent.mkdir(exist_ok=True)
     cache.write_text(json.dumps(sample, ensure_ascii=False), encoding="utf-8")
@@ -128,12 +136,14 @@ def main() -> None:
     parser.add_argument("--mode", choices=["levels", "pii"], default="levels")
     parser.add_argument("--config", type=Path, default=Path(__file__).parents[1] / "config.yaml")
     parser.add_argument("--n", type=int, default=100, help="pii 模式每类抽样条数")
-    parser.add_argument("--output", type=Path, default=EVAL_DIR / "eval_report.csv")
+    parser.add_argument("--output", type=Path, default=None, help="默认 eval_report_<mode>.csv")
     args = parser.parse_args()
 
     config = yaml.safe_load(args.config.read_text(encoding="utf-8"))
     client = OpenAI(base_url=config["llm_server"]["base_url"], api_key="ollama")
     rows = run_levels(client, config) if args.mode == "levels" else run_pii(client, config, args.n)
+    if args.output is None:
+        args.output = EVAL_DIR / f"eval_report_{args.mode}.csv"
 
     with args.output.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=["mode", "file", "expected", "predicted", "error"])

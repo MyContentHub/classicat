@@ -390,3 +390,4 @@ vite.config.ts.timestamp-*
 
 # eval pii dataset cache
 doc-classifier/eval/pii_cache/
+doc-classifier/eval/*.csv

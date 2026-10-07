@@ -44,7 +44,7 @@ uv run eval/run_eval.py --mode pii --n 100   # --n 可调小快速冒烟
 ```
 
 PII 样本缓存于 `eval/pii_cache/sample.json`（固定随机种子，多次运行一致；删除后重跑可重新抽样）。
-首次运行 `--mode pii` 会从 HuggingFace 下载数据集（几百 MB）。结果明细写入 `eval/eval_report.csv`。
+首次运行 `--mode pii` 会从 HuggingFace 下载数据集（几百 MB）。结果明细按模式写入 `eval/eval_report_<mode>.csv`。
 
 ## 项目结构
 
