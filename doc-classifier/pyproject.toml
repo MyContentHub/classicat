@@ -1,0 +1,15 @@
+[project]
+name = "doc-classifier"
+version = "0.1.0"
+description = "本地 markdown 敏感度分级工具（方法论源自 Meta ClassifyIt）"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "openai>=3.26.0",
+    "pyyaml>=6.0.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

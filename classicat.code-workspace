@@ -1,0 +1,18 @@
+{
+    "folders": [
+        {
+            "path": ".",
+            "name": "classicat"
+        },
+        {
+            "path": "doc-classifier",
+            "name": "doc-classifier"
+        }
+    ],
+    "settings": {
+        "python.defaultInterpreterPath": "${workspaceFolder:doc-classifier}/.venv/Scripts/python.exe",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["doc-classifier"],
+        "python.analysis.extraPaths": ["doc-classifier"]
+    }
+}
