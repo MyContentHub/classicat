@@ -387,3 +387,6 @@ vite.config.ts.timestamp-*
 # local scratch workspace
 .scratch/
 
+
+# eval pii dataset cache
+doc-classifier/eval/pii_cache/

@@ -11,5 +11,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "datasets>=5.1.0",
     "pytest>=9.1.1",
 ]
