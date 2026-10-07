@@ -395,3 +395,6 @@ doc-classifier/.env
 # eval pii dataset cache
 doc-classifier/eval/pii_cache/
 doc-classifier/eval/*.csv
+
+# rendered images (regenerable from svg)
+doc-classifier/assets/*.png
