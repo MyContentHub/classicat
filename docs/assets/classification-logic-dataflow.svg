@@ -1,0 +1,82 @@
+<svg viewBox="0 0 822 490" width="822" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', system-ui, sans-serif; }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <!-- Title (content center x=411) -->
+  <text x="411" y="32" font-size="16" fill="#1e293b" text-anchor="middle">分类逻辑层数据流（LLM 提议 · 代码裁决）</text>
+
+  <!-- ===== Row 1: input → LLM → proposal ===== -->
+  <rect x="24" y="70" width="170" height="64" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="109" y="96" font-size="12" fill="#1e40af" text-anchor="middle">文档</text>
+  <text x="109" y="114" font-size="10" fill="#1e40af" text-anchor="middle">markdown · 纯文本</text>
+
+  <rect x="222" y="70" width="230" height="64" rx="6" fill="#f3e8ff" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="337" y="96" font-size="12" fill="#6b21a8" text-anchor="middle">LLM 单次调用</text>
+  <text x="337" y="114" font-size="10" fill="#6b21a8" text-anchor="middle">qwen2.5:7b · 分步推理 prompt</text>
+
+  <rect x="480" y="70" width="290" height="82" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="625" y="90" font-size="12" fill="#1e293b" text-anchor="middle">LLM 输出（提议）</text>
+  <text x="625" y="107" font-size="10" fill="#64748b" text-anchor="middle">information_types[]：type · c · i · a</text>
+  <text x="625" y="122" font-size="10" fill="#64748b" text-anchor="middle">confidence · evidence</text>
+  <text x="625" y="137" font-size="10" fill="#64748b" text-anchor="middle">suggested_label · explanation</text>
+
+  <path d="M199,102 L 211,102" fill="none" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M457,102 L 469,102" fill="none" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ===== logic.py dashed group (x=24, y=230, w=576, h=118, bottom=348) ===== -->
+  <rect x="24" y="230" width="576" height="118" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="34" y="244" font-size="11" fill="#64748b">logic.py 裁决（纯代码 · 可单测）</text>
+
+  <rect x="44" y="264" width="160" height="68" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="124" y="283" font-size="11" fill="#1e40af" text-anchor="middle">① 评级兜底</text>
+  <text x="124" y="300" font-size="10" fill="#1e40af" text-anchor="middle">max(LLM 评级, 目录基线)</text>
+  <text x="124" y="316" font-size="10" fill="#1e40af" text-anchor="middle">下调锁死 · 上调需证据</text>
+
+  <rect x="232" y="264" width="160" height="68" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="312" y="283" font-size="11" fill="#1e40af" text-anchor="middle">② 高水位线</text>
+  <text x="312" y="300" font-size="10" fill="#1e40af" text-anchor="middle">SC = max(C, I, A)</text>
+  <text x="312" y="316" font-size="10" fill="#1e40af" text-anchor="middle">FIPS 199</text>
+
+  <rect x="420" y="264" width="160" height="68" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="500" y="283" font-size="11" fill="#1e40af" text-anchor="middle">③ 标签映射</text>
+  <text x="500" y="300" font-size="10" fill="#1e40af" text-anchor="middle">level_rules 配置表</text>
+  <text x="500" y="316" font-size="10" fill="#1e40af" text-anchor="middle">组织策略可调</text>
+
+  <path d="M209,298 L 221,298" fill="none" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M397,298 L 409,298" fill="none" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ===== Right column: review → CSV ===== -->
+  <rect x="628" y="245" width="170" height="88" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="713" y="265" font-size="11" fill="#b45309" text-anchor="middle">needs_review 判定</text>
+  <text x="713" y="282" font-size="10" fill="#b45309" text-anchor="middle">置信度 &lt; 0.7</text>
+  <text x="713" y="298" font-size="10" fill="#b45309" text-anchor="middle">存在待归类类型</text>
+  <text x="713" y="314" font-size="10" fill="#b45309" text-anchor="middle">label ≠ suggested_label</text>
+
+  <rect x="628" y="373" width="170" height="88" rx="6" fill="#d1fae5" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="713" y="393" font-size="11" fill="#166534" text-anchor="middle">CSV 输出</text>
+  <text x="713" y="410" font-size="10" fill="#166534" text-anchor="middle">sc_c · sc_i · sc_a</text>
+  <text x="713" y="426" font-size="10" fill="#166534" text-anchor="middle">types · confidence</text>
+  <text x="713" y="442" font-size="10" fill="#166534" text-anchor="middle">needs_review（over/under）</text>
+
+  <path d="M605,289 L 617,289" fill="none" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M713,338 L 713,362" fill="none" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- JSON proposal → logic group -->
+  <path d="M625,157 C 625,185 550,199 550,219" fill="none" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- config.yaml feeds the logic group from below -->
+  <rect x="60" y="388" width="150" height="52" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="135" y="408" font-size="11" fill="#334155" text-anchor="middle">config.yaml</text>
+  <text x="135" y="426" font-size="10" fill="#64748b" text-anchor="middle">基线目录 · level_rules</text>
+  <path d="M135,383 L 135,359" fill="none" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- caption fills bottom-middle zone -->
+  <text x="400" y="414" font-size="10" fill="#64748b" text-anchor="middle">LLM 只提议 · 代码裁决</text>
+  <text x="400" y="430" font-size="10" fill="#64748b" text-anchor="middle">映射可审计 · 可单测 · 不随模型波动</text>
+</svg>

@@ -38,17 +38,7 @@ LLM 负责"文档里有什么信息类型、每类 C/I/A 影响是几级"；
 
 ## 四、数据流
 
-```
-文档 → LLM（单次调用，分步推理 prompt）
-     → { information_types: [{type, c, i, a, confidence, evidence}],
-         suggested_label, explanation }          ← LLM 输出（提议）
-     → logic.py 裁决：
-         每维评级 = max(LLM 评级, 目录基线)       ← 防不足分类
-         SC = (max C, max I, max A)              ← FIPS 199 高水位线
-         label = SC 映射表                        ← 配置驱动
-     → needs_review = 置信度低 ∨ 有"待归类"类型 ∨ label ≠ suggested_label
-     → CSV（新增列：sc_c/sc_i/sc_a, types, confidence, needs_review）
-```
+![分类逻辑层数据流](../assets/classification-logic-dataflow.svg)
 
 ## 五、三块改动
 
@@ -58,8 +48,9 @@ LLM 负责"文档里有什么信息类型、每类 C/I/A 影响是几级"；
 def resolve(analysis: dict, catalog: dict, rules: dict) -> dict:
     """评级校验 → 高水位线 → 标签映射 → 复核标记。纯函数，pytest 直接覆盖。"""
     # 每维：max(LLM rating, catalog baseline)，未知类型用 LLM 评级并标记待归类
+    # LLM 上调需 confidence ≥ 阈值且 evidence 非空，否则回落基线（防过度分类）
     # SC = 逐维取各类最大值；查 rules 表得 label
-    # needs_review：confidence < 阈值 / 有 unmapped 类型 / label != suggested_label
+    # needs_review：confidence < 阈值 / 有 unmapped 类型 / 与建议不符时记方向 over/under
 ```
 
 ### 2. `config.yaml`（扩展，不新增配置文件）
@@ -109,18 +100,35 @@ logic:
 | 步骤 | 内容 | 验证 |
 |---|---|---|
 | **0** | 拉取 qwen2.5:7b、改 config 模型名，在**现有管线**上跑 eval levels + pii | 得到 7B 新基线（准确率/不足分类率） |
-| 1 | 写 `logic.py` + 单测（高水位线、基线兜底、待归类、冲突标记） | `uv run pytest`，纯逻辑不需要 Ollama |
+| 1 | 写 `logic.py` + 单测（高水位线、基线兜底、证据门控上调、待归类、冲突方向标记） | `uv run pytest`，纯逻辑不需要 Ollama |
 | 2 | config 加种子目录 + level_rules | yaml 可加载，单测覆盖映射表 |
 | 3 | prompt v2 + `classify_content` 接入裁决，返回值保留 `category_matched` 键 | 扩展现有 FakeClient 测试 |
 | 4 | CSV 新列 + `eval/run_eval.py` 适配 | eval levels 模式跑通 |
-| 5 | eval 前后对比 | **不足分类率不升高**（安全红线），待归类率可接受 |
+| 5 | eval 前后对比 | **不足分类率不升高**（安全红线），过度分类率不高于步骤 0 基线，待归类率可接受 |
 
 > 步骤 0 的意义：换模型与换逻辑层分开归因，避免 eval 前后对比混淆变量。
 
 ## 八、风险与升级路径
 
-- **基线兜底方向**：`max(LLM, 目录基线)` 只防不足分类、放任过度分类；
-  评估时盯过度分类率，必要时改为"LLM 可下调但需 evidence"。
+- **双向不对称防护**：不足分类走硬兜底（`max(LLM, 基线)`，安全红线不可让）；
+  过度分类走证据门控（上调需 confidence 达标且 evidence 非空）+ 方向化
+  needs_review（over 样本作为基线调优信号，驱动 config 基线定期校准）。
 - **eval 兼容**：`run_eval.py` 只用 `["category_matched"]`，
   返回结构保留该键即可，零改动或一行适配。
 - **seed 目录覆盖不足**：待归类率偏高时增补类型即可（纯配置变更）。
+
+## 九、标准符合性对照
+
+本方案是**支撑 ISO/IEC 27001 A.5.12 落地的分级工具**，不是合规声明。
+各标准覆盖情况：
+
+| 标准 | 要求要点 | 方案覆盖 | 缺口 |
+|---|---|---|---|
+| ISO 27001 A.5.12 | 按 C/I/A 需求分类 | ✅ CIA 三维评级 + 高水位线（主干） | 聚合影响（多篇低敏合并推断）、责任人、复审周期未涉及 |
+| ISO 27001 A.5.12 | 反对过度/不足分类 | ✅ 双向不对称防护：不足分类硬兜底；过度分类证据门控 + 方向化复核 + 基线调优闭环 | — |
+| ISO 27001 A.5.13 | 标记程序落地（元数据写回、权限/DLP 联动） | ❌ 止步 CSV + needs_review | 留作下一阶段：CSV 列已够写回脚本消费，无需现在设计 |
+| NIST SP 800-60 | 信息类型 → 安全类别映射方法论 | ✅ 种子目录 + max(LLM, 基线) 校验 | 全量 80+ 类型不搬，按需增补 |
+| FIPS 199 | 高水位线规则 | ✅ SC = max(C, I, A)，代码实现 | — |
+
+责任人指定、复审周期属于组织治理流程，工具只提供 `needs_review`
+标记与审计数据（后续阶段补审计字段），不做流程实现。
