@@ -13,7 +13,19 @@ from pathlib import Path
 import yaml
 from openai import OpenAI
 
+from logic import DIMENSIONS, resolve
+
 logger = logging.getLogger("doc_classifier")
+
+CSV_FIELDS = [
+    "file_name",
+    "category_matched",
+    "security_category",
+    "needs_review",
+    "review_reasons",
+    "brief_explanation",
+    "error",
+]
 
 
 def load_dotenv(path: Path) -> dict:
@@ -52,18 +64,33 @@ def extract_json(text: str) -> dict:
 
 
 def classify_content(client: OpenAI, config: dict, content: str) -> dict:
-    """调用 LLM 对单个文档内容分级，返回 {"category_matched", "brief_explanation"}。"""
+    """调用 LLM 分析文档，经分类逻辑层裁决后返回结果（保留 category_matched 键）。"""
     agent = config["agent_settings"]
     categories = json.dumps(agent["response_categories"], ensure_ascii=False)
+    catalog = json.dumps(config.get("logic", {}).get("information_types", {}), ensure_ascii=False)
     response = client.chat.completions.create(
         model=config["llm_server"]["model"],
         messages=[
             {"role": "system", "content": f"{agent['agent_instructions']}\n\nValid categories: {categories}"},
-            {"role": "user", "content": f"{agent['prompt']}\n\n<document>\n{content[:5000]}\n</document>"},
+            {
+                "role": "user",
+                "content": (
+                    f"{agent['prompt']}\n\n"
+                    f"Information type catalog (baseline ratings, rate higher only with evidence):\n{catalog}\n\n"
+                    f"<document>\n{content[:5000]}\n</document>"
+                ),
+            },
         ],
         temperature=0.1,
     )
-    return extract_json(response.choices[0].message.content)
+    analysis = extract_json(response.choices[0].message.content)
+    logic = config.get("logic", {})
+    result = resolve(analysis, logic.get("information_types", {}), logic)
+    return {
+        "category_matched": result["category_matched"],
+        "brief_explanation": str(analysis.get("brief_explanation", "")),
+        **result,
+    }
 
 
 def classify_file(client: OpenAI, config: dict, path: Path, max_retries: int = 3) -> dict:
@@ -76,6 +103,9 @@ def classify_file(client: OpenAI, config: dict, path: Path, max_retries: int = 3
             return {
                 "file_name": path.name,
                 "category_matched": result["category_matched"],
+                "security_category": "/".join(result["security_category"][d] for d in DIMENSIONS),
+                "needs_review": result["needs_review"],
+                "review_reasons": "; ".join(result["review_reasons"]),
                 "brief_explanation": result["brief_explanation"],
                 "error": "",
             }
@@ -85,13 +115,16 @@ def classify_file(client: OpenAI, config: dict, path: Path, max_retries: int = 3
                 return {
                     "file_name": path.name,
                     "category_matched": "",
+                    "security_category": "",
+                    "needs_review": "",
+                    "review_reasons": "",
                     "brief_explanation": "",
                     "error": str(e),
                 }
             logger.warning("Attempt %d failed for %s: %s, retrying in %ds", attempt + 1, path.name, e, delay)
             time.sleep(delay)
             delay *= 2
-    return {}  # unreachable
+            return {f: "" for f in CSV_FIELDS}  # unreachable, keeps type checkers happy
 
 
 def run(directory: Path, config_path: Path, output_csv: Path) -> list[dict]:
@@ -104,7 +137,7 @@ def run(directory: Path, config_path: Path, output_csv: Path) -> list[dict]:
     results = [classify_file(client, config, f) for f in md_files]
 
     with output_csv.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["file_name", "category_matched", "brief_explanation", "error"])
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
         writer.writerows(results)
     logger.info("Results written to %s", output_csv)

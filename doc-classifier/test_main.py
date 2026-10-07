@@ -3,6 +3,8 @@
 import csv
 from pathlib import Path
 
+import yaml
+
 from main import apply_env_overrides, extract_json, load_dotenv, run
 
 
@@ -47,19 +49,43 @@ def test_run_writes_csv(tmp_path, monkeypatch):
 
     class FakeResponse:
         def __init__(self):
-            msg = '```json\n{"category_matched": "internal", "brief_explanation": "note"}\n```'
+            msg = (
+                "```json\n"
+                '{"information_types": [{"type": "员工客户PII", "unmapped": false, '
+                '"c": "high", "i": "moderate", "a": "low", "evidence": "id numbers"}], '
+                '"suggested_label": "public", "confidence": 0.9, "brief_explanation": "note"}\n'
+                "```"
+            )
             self.choices = [type("C", (), {"message": type("M", (), {"content": msg})()})()]
 
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
         "llm_server:\n  base_url: http://x\n  model: m\n"
-        "agent_settings:\n  agent_instructions: i\n  prompt: p\n  response_categories: {}\n",
+        "agent_settings:\n  agent_instructions: i\n  prompt: p\n  response_categories: {}\n"
+        "logic:\n  review_confidence: 0.7\n"
+        "  level_rules: {high: confidential, moderate: restricted, low: internal}\n"
+        "  information_types:\n    员工客户PII: {c: high, i: moderate, a: low}\n",
         encoding="utf-8",
     )
     monkeypatch.setattr("main.OpenAI", lambda **_: FakeClient())
     out_csv = tmp_path / "out.csv"
     results = run(tmp_path / "docs", config_path, out_csv)
 
-    assert results == [{"file_name": "a.md", "category_matched": "internal", "brief_explanation": "note", "error": ""}]
+    # LLM 建议 public，逻辑层按 PII 基线兜底为 confidential 并标记过度分类复核
+    assert results[0]["category_matched"] == "confidential"
+    assert results[0]["security_category"] == "high/moderate/low"
+    assert results[0]["needs_review"] is True
+    assert "over" in results[0]["review_reasons"]
+    assert results[0]["brief_explanation"] == "note"
     rows = list(csv.DictReader(out_csv.open(encoding="utf-8")))
-    assert len(rows) == 1 and rows[0]["category_matched"] == "internal"
+    assert len(rows) == 1 and rows[0]["category_matched"] == "confidential"
+    assert rows[0]["needs_review"] == "True"
+
+
+def test_config_logic_section_loads():
+    config = yaml.safe_load((Path(__file__).parent / "config.yaml").read_text(encoding="utf-8"))
+    logic = config["logic"]
+    assert logic["review_confidence"] == 0.7
+    assert logic["level_rules"] == {"high": "confidential", "moderate": "restricted", "low": "internal"}
+    assert logic["information_types"]["公开发布信息"]["public"] is True
+    assert logic["information_types"]["员工客户PII"]["c"] == "high"
