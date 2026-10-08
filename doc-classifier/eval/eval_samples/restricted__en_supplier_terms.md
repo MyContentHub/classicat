@@ -1,4 +1,4 @@
-# Supplier Exclusivity Terms - Internal Draft
+# Supplier Exclusivity Terms - Draft
 
 Volume commitment: 40k units/year at locked pricing.
 Penalty clause: 15% of shortfall value.

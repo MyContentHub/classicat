@@ -1,4 +1,4 @@
-# All-Hands Prep Notes (Internal)
+# All-Hands Prep Notes
 
 Agenda draft for Friday: quarterly metrics overview,
 team highlights, upcoming hiring plan discussion.

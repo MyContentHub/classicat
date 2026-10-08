@@ -1,4 +1,4 @@
-# Candidate Interview Scorecard (Confidential)
+# Candidate Interview Scorecard
 
 Candidate: senior platform role. Panel scores, reference
 check notes, and current compensation expectations included.
