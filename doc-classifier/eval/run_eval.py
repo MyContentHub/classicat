@@ -141,7 +141,7 @@ def main() -> None:
     args = parser.parse_args()
 
     config = yaml.safe_load(args.config.read_text(encoding="utf-8"))
-    apply_env_overrides(config, args.config.parent.parent / ".env")
+    apply_env_overrides(config, Path(__file__).parents[1] / ".env")
     client = OpenAI(base_url=config["llm_server"]["base_url"], api_key=config["llm_server"].get("api_key", "ollama"))
     rows = run_levels(client, config) if args.mode == "levels" else run_pii(client, config, args.n)
     if args.output is None:
